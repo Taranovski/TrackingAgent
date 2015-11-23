@@ -1,0 +1,59 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 23
+    buildToolsVersion "23.0.2"
+
+    defaultConfig {
+        applicationId "com.epam.nonstop.parkotronic.trackingagent"
+        minSdkVersion 8
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+    }
+    signingConfigs {
+        release {
+            storeFile file("release.keystore")
+            storePassword "password"
+            keyAlias "password"
+            keyPassword "password"
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    packagingOptions {
+        exclude 'META-INF/notice.txt'
+        exclude 'META-INF/license.txt'
+        exclude 'META-INF/spring.schemas'
+        exclude 'META-INF/spring.handlers'
+        exclude 'META-INF/spring.tooling'
+        exclude 'META-INF/INDEX.LIST'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/NOTICE'
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+    testCompile 'junit:junit:4.12'
+    compile 'com.android.support:appcompat-v7:23.1.0'
+    compile 'com.android.support:design:23.1.0'
+    compile 'org.springframework.android:spring-android-rest-template:1.0.1.RELEASE'
+
+//    compile 'org.jboss.resteasy:resteasy-jaxrs:3.0.13.Final'
+
+//    compile 'org.jboss.logging:jboss-logging:3.3.0.Final'
+
+//    compile 'org.springframework:spring-web:4.2.3.RELEASE'
+//    compile 'org.codehaus.jackson:jackson-core-asl:1.9.13'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.3.2'
+//    compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.13'
+
+    androidTestCompile 'junit:junit:4.12'
+}
