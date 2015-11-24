@@ -28,16 +28,20 @@ public class MainActivity extends AppCompatActivity {
     private EditText yCoordinateInputField;
     private TextView editableResult;
 
-    String prefix = "http://";
-    String suffix = ":8080/nonstop/welcome";
+    private String prefix = "http://";
+    private String suffixForSimpleCall = ":8080/nonstop/welcome";
+    private String suffixForSpotInfoCall = ":8080/nonstop/spotInfo";
 
     private Button startScanButton;
     private Button endScanButton;
 
     private TextView discoveryResultEditableText;
 
-    BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+    private BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
     private TextView editableDeviceId;
+
+    private volatile boolean discoveryRunning;
+    private volatile boolean broadcastReceiverRegistered;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,20 +57,7 @@ public class MainActivity extends AppCompatActivity {
         editableResult = (TextView) findViewById(R.id.application_text_editable_result_of_send);
         editableDeviceId = (TextView) findViewById(R.id.application_text_editable_device_id);
 
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String serverAddress = serverIpInputField.getText().toString();
-                String xCoordinate = xCoordinateInputField.getText().toString();
-                String yCoordinate = yCoordinateInputField.getText().toString();
-                String deviceId = editableDeviceId.getText().toString();
-                String url = prefix + serverAddress + suffix +
-                        "?name=x:" + xCoordinate + ";y:" + yCoordinate + ";id:" + deviceId;
-
-                AsyncTask result = new RestCallTask(editableResult).execute(url);
-
-            }
-        });
+        button.setOnClickListener(new SimpleOnClickListener());
 
         startScanButton = (Button) findViewById(R.id.application_action_start_bluetooth_scan);
         endScanButton = (Button) findViewById(R.id.application_action_end_bluetooth_scan);
@@ -74,60 +65,13 @@ public class MainActivity extends AppCompatActivity {
         discoveryResultEditableText = (TextView) findViewById(R.id.application_text_editable_result_of_discovery);
 
 
-        startScanButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+        startScanButton.setOnClickListener(new StartBluetoothScanOnClickListener());
 
-                IntentFilter filter = new IntentFilter();
-
-                filter.addAction(BluetoothDevice.ACTION_FOUND);
-                filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
-                filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-
-                registerReceiver(mReceiver, filter);
-                adapter.startDiscovery();
-            }
-        });
-
-        endScanButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                adapter.cancelDiscovery();
-                unregisterReceiver(mReceiver);
-
-            }
-        });
+        endScanButton.setOnClickListener(new StopBluetoothScanOnClickListener());
 
     }
 
-    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-
-            if (BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
-                //discovery starts, we can show progress dialog or perform other tasks
-            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-                //discovery finishes, dismis progress dialog
-            } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                //bluetooth device found
-                BluetoothDevice device = (BluetoothDevice) intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-
-                short rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE);
-                // Add the name and address to an array adapter to show in a ListView
-                String name = device.getName();
-                String address = device.getAddress();
-                String xCoordinate = xCoordinateInputField.getText().toString();
-                String yCoordinate = yCoordinateInputField.getText().toString();
-                String deviceId = editableDeviceId.getText().toString();
-                String serverAddress = serverIpInputField.getText().toString();
-
-                String url = prefix + serverAddress + suffix;
-
-                AsyncTask<String, Integer, Dto> asyncTask =
-                        new BluetoothRestCallTask(discoveryResultEditableText, deviceId, xCoordinate, yCoordinate, name, address).execute(url);
-            }
-        }
-    };
+    private final BroadcastReceiver mReceiver = new BluetoothTrackingBroadcastReceiver();
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -153,8 +97,87 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onDestroy() {
-        unregisterReceiver(mReceiver);
-
+        if (broadcastReceiverRegistered) {
+            unregisterReceiver(mReceiver);
+        }
         super.onDestroy();
+    }
+
+    private class SimpleOnClickListener implements View.OnClickListener {
+        @Override
+        public void onClick(View v) {
+            String serverAddress = serverIpInputField.getText().toString();
+            String xCoordinate = xCoordinateInputField.getText().toString();
+            String yCoordinate = yCoordinateInputField.getText().toString();
+            String deviceId = editableDeviceId.getText().toString();
+            String url = prefix + serverAddress + suffixForSimpleCall +
+                    "?name=x:" + xCoordinate + ";y:" + yCoordinate + ";id:" + deviceId;
+
+            AsyncTask result = new RestCallTask(editableResult).execute(url);
+
+        }
+    }
+
+    private class StartBluetoothScanOnClickListener implements View.OnClickListener {
+        @Override
+        public void onClick(View v) {
+            if (!discoveryRunning && !broadcastReceiverRegistered) {
+                IntentFilter filter = new IntentFilter();
+
+                filter.addAction(BluetoothDevice.ACTION_FOUND);
+                filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
+                filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+
+                registerReceiver(mReceiver, filter);
+                broadcastReceiverRegistered = true;
+                adapter.startDiscovery();
+                discoveryRunning = true;
+            }
+        }
+    }
+
+    private class StopBluetoothScanOnClickListener implements View.OnClickListener {
+        @Override
+        public void onClick(View v) {
+            if (discoveryRunning) {
+                adapter.cancelDiscovery();
+            }
+            if (broadcastReceiverRegistered) {
+                unregisterReceiver(mReceiver);
+            }
+
+        }
+    }
+
+    private class BluetoothTrackingBroadcastReceiver extends BroadcastReceiver {
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+
+            if (BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(action)) {
+                //discovery starts, we can show progress dialog or perform other tasks
+            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+                //discovery finishes, dismis progress dialog
+            } else if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                //bluetooth device found
+                BluetoothDevice device = (BluetoothDevice) intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+
+                short rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE);
+                // Add the name and address to an array adapter to show in a ListView
+                String name = device.getName();
+                String address = device.getAddress();
+
+                String xCoordinate = xCoordinateInputField.getText().toString();
+                String yCoordinate = yCoordinateInputField.getText().toString();
+                String deviceId = editableDeviceId.getText().toString();
+                String serverAddress = serverIpInputField.getText().toString();
+
+                String url = prefix + serverAddress + suffixForSpotInfoCall;
+
+                AsyncTask<String, Integer, Dto> asyncTask =
+                        new BluetoothRestCallTask(discoveryResultEditableText, deviceId,
+                                xCoordinate, yCoordinate, name, address, rssi)
+                                .execute(url);
+            }
+        }
     }
 }

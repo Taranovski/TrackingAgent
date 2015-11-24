@@ -23,13 +23,14 @@ public class BluetoothRestCallTask extends AsyncTask<String, Integer, Dto> {
     private final String yCoordinate;
     private final String name;
     private final String address;
+    private short rssi;
 
     private RestTemplate restTemplate;
 
     public BluetoothRestCallTask(TextView discoveryResultEditableText,
                                  String deviceId, String xCoordinate,
                                  String yCoordinate, String name,
-                                 String address) {
+                                 String address, short rssi) {
 
         this.discoveryResultEditableText = discoveryResultEditableText;
         this.deviceId = deviceId;
@@ -37,6 +38,7 @@ public class BluetoothRestCallTask extends AsyncTask<String, Integer, Dto> {
         this.yCoordinate = yCoordinate;
         this.name = name;
         this.address = address;
+        this.rssi = rssi;
 
 
         restTemplate = new RestTemplate();
@@ -50,10 +52,15 @@ public class BluetoothRestCallTask extends AsyncTask<String, Integer, Dto> {
 
         SpotInfo spotInfo = new SpotInfo();
 
+        spotInfo.setDeviceId(deviceId);
+        spotInfo.setxCoordinate(xCoordinate);
+        spotInfo.setyCoordinate(yCoordinate);
+
+        spotInfo.setDeviceName(name);
+        spotInfo.setDeviceAdress(address);
+        spotInfo.setDeviceRSSI(rssi);
+
         ResponseEntity<Dto> dtoResponseEntity = restTemplate.postForEntity(params[0], spotInfo, Dto.class);
-
-
-
 
         return dtoResponseEntity.getBody();
     }
